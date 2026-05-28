@@ -1,11 +1,14 @@
 """
-Main entry point: run the full preprocessing pipeline (Stages 1-3).
+Main entry point: run the full preprocessing pipeline (Stages 1-4).
 
 Usage:
     python run_pipeline.py                  # Full pipeline
     python run_pipeline.py --stage 1        # Only extract pages from PDFs
     python run_pipeline.py --stage 2        # Only preprocess (deskew + binarize)
     python run_pipeline.py --stage 3        # Only segment lines
+    python run_pipeline.py --stage 4        # Only transcribe with TrOCR
+    python run_pipeline.py --stage 4 --polish  # Transcribe with custom Polish blank-slate model
+    python run_pipeline.py --stage 4 --transcription-model finetuned  # Use fine-tuned model
     python run_pipeline.py --no-debug       # Skip debug visualizations
     python run_pipeline.py --sample 5       # Process only first 5 pages (for testing)
 """
@@ -25,11 +28,12 @@ if sys.platform == "win32":
     except Exception:
         pass
 
-from config import LINES_DIR, OUTPUT_DIR, PAGES_DIR, PREPROCESSED_DIR
+from config import LINES_DIR, OUTPUT_DIR, PAGES_DIR, PREPROCESSED_DIR, TRANSCRIPTIONS_DIR
 from extract_pages import extract_all
 from preprocess import preprocess_all
 from segment_lines import segment_all
 from build_dataset import build_metadata, print_dataset_stats
+from transcribe import transcribe_all
 
 
 def setup_logging(verbose: bool = False) -> None:
@@ -58,15 +62,19 @@ def _banner(text: str) -> None:
 def run_pipeline(stages: list[int] | None = None,
                  save_debug: bool = True,
                  sample: int | None = None,
-                 method: str | None = None) -> None:
+                 method: str | None = None,
+                 use_polish: bool = False,
+                 transcription_model: str = "base") -> None:
     """
     Execute the preprocessing pipeline.
 
     Args:
-        stages: Which stages to run (1, 2, 3). None = all.
+        stages: Which stages to run (1, 2, 3, 4). None = all.
         save_debug: Whether to save debug visualizations.
         sample: If set, only process this many pages (for quick testing).
         method: The line segmentation method ('kraken' or 'projection').
+        use_polish: If True, use the large TrOCR model for better Polish support.
+        transcription_model: TrOCR variant for stage 4 ("base", "polish", "finetuned").
     """
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -117,6 +125,35 @@ def run_pipeline(stages: list[int] | None = None,
         # Print stats
         print_dataset_stats()
 
+    # -- Stage 4: Transcribe lines with TrOCR --
+    if run_all or 4 in stages:
+        _banner("STAGE 4: Transcribing lines with TrOCR")
+        if use_polish:
+            transcription_model = "polish"
+
+        model_labels = {
+            "base": "base",
+            "polish": "custom Polish blank-slate (ViT+HerBERT)",
+            "finetuned": "fine-tuned on sample_300",
+        }
+        model_label = model_labels.get(transcription_model, transcription_model)
+        print(f"  Model: {model_label}")
+        if sample:
+            print(f"  Sampling: first {sample} pages")
+        t = time.time()
+        results = transcribe_all(model_variant=transcription_model, sample=sample)
+        total_lines = sum(len(v) for v in results.values())
+        print(f"  [OK] Transcribed {total_lines} lines from {len(results)} pages in {time.time() - t:.1f}s\n")
+
+        # Print a sample
+        if results:
+            first_page = next(iter(results))
+            lines = results[first_page]
+            print(f"  --- Sample from {first_page} (first 3 lines) ---")
+            for line_num, text in lines[:3]:
+                print(f"    Line {line_num:03d}: {text}")
+            print()
+
     elapsed = time.time() - t_total
     print(f"\n{'-' * 50}")
     print(f"Pipeline complete in {elapsed:.1f}s")
@@ -129,7 +166,8 @@ def run_pipeline(stages: list[int] | None = None,
     print(f"  +-- 1_pages/          <- Full-page images ({_count_files(PAGES_DIR)} files)")
     print(f"  +-- 2_preprocessed/   <- Deskewed & binarized ({_count_files(PREPROCESSED_DIR)} files)")
     print(f"  +-- 3_lines/          <- Line crops ({_count_files(LINES_DIR, recursive=True)} files)")
-    print(f"  +-- dataset/          <- metadata.csv for TrOCR")
+    print(f"  +-- 4_transcriptions/ <- Text outputs ({_count_files(TRANSCRIPTIONS_DIR)} files)")
+    print(f"  +-- dataset/          <- metadata.csv with transcriptions")
     print(f"  +-- debug/            <- Segmentation overlays")
 
 
@@ -149,8 +187,8 @@ def main():
         description="OCR Preprocessing Pipeline for Historical Handwritten Letters"
     )
     parser.add_argument(
-        "--stage", type=int, nargs="+", choices=[1, 2, 3],
-        help="Run only specific stages (1=extract, 2=preprocess, 3=segment). Default: all."
+        "--stage", type=int, nargs="+", choices=[1, 2, 3, 4],
+        help="Run only specific stages (1=extract, 2=preprocess, 3=segment, 4=transcribe). Default: all."
     )
     parser.add_argument(
         "--no-debug", action="store_true",
@@ -168,6 +206,17 @@ def main():
         "--method", type=str, choices=["kraken", "projection"], default=None,
         help="Line segmentation method. Options: kraken (default), projection (legacy)."
     )
+    parser.add_argument(
+        "--polish", action="store_true",
+        help="Use custom Polish blank-slate model (ViT + HerBERT) instead of the base model."
+    )
+    parser.add_argument(
+        "--transcription-model",
+        type=str,
+        choices=["base", "polish", "finetuned"],
+        default="base",
+        help="Stage 4 model choice. Options: base, polish, finetuned.",
+    )
 
     args = parser.parse_args()
 
@@ -178,6 +227,8 @@ def main():
         save_debug=not args.no_debug,
         sample=args.sample,
         method=args.method,
+        use_polish=args.polish,
+        transcription_model=args.transcription_model,
     )
 
 

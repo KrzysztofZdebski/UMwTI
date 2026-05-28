@@ -6,7 +6,7 @@ PyMuPDF>=1.23.0       # PDF page extraction (fitz)
 scikit-image>=0.21.0   # Sauvola binarization, deskew
 tqdm>=4.65.0           # Progress bars
 
-# Stage 4: TrOCR inference & fine-tuning (install separately when needed)
-# transformers>=4.35.0
-# torch>=2.0.0
-# datasets>=2.14.0
+# Stage 4: TrOCR inference & fine-tuning
+transformers>=4.35.0
+torch>=2.0.0
+datasets>=2.14.0
