@@ -1,0 +1,42 @@
+<USER_REQUEST>
+You must RE-TRANSCRIBE exactly 20 handwritten line images. These were previously transcribed incorrectly (hallucinated repeated words or too short). You MUST view each image carefully and write what you actually see.
+
+IMAGE DIRECTORY: c:\Users\KMZde\Desktop\AGH\UMwTI\output\sample_1000\
+
+IMPORTANT RULES:
+- Do NOT repeat words. If you find yourself writing the same word 3+ times, STOP and look at the image again.
+- Transcribe EXACTLY what you see in the handwritten image.
+- Keep Polish diacritics: ą, ć, ę, ł, ń, ó, ś, ź, ż
+- If a line truly has only 1-3 characters, that is okay, but double-check.
+- If an image is genuinely blank/empty, write just the filename with a tab and nothing after.
+
+FILES TO RE-TRANSCRIBE (use view_file for each image):
+932: 20251129162345751_p002_line_019.png
+934: 20251129162505774_p002_line_002.png
+935: 20251129162505774_p002_line_013.png
+936: 20251129162533174_p002_line_009.png
+937: 20251129162533174_p002_line_024.png
+941: 20251129162639353_p002_line_036.png
+942: 20251129162711233_p002_line_006.png
+945: 20251129162806675_p001_line_025.png
+947: 20251129162806675_p002_line_017.png
+949: 20251129162852343_p001_line_013.png
+953: 20251129162852343_p003_line_012.png
+959: 20251129163208806_p002_line_004.png
+962: 20251129163337971_p001_line_006.png
+964: 20251129163337971_p002_line_003.png
+965: 20251129163337971_p002_line_044.png
+967: 20251129163436574_p001_line_015.png
+968: 20251129163436574_p002_line_029.png
+972: 20251129163518032_p001_line_007.png
+973: 20251129163518032_p001_line_013.png
+974: 20251129163518032_p001_line_014.png
+
+OUTPUT: Save results to c:\Users\KMZde\Desktop\AGH\UMwTI\output\retrans_batch9.txt
+Format: one line per image = <filename>TAB<transcription>
+
+When done, send me a message with the complete list of your 20 transcriptions.
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-11T19:41:13+02:00.
+</ADDITIONAL_METADATA>
