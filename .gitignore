@@ -3,3 +3,6 @@ output
 venv
 _*
 *.zip
+*.json
+*.bin
+*.safetensors
