@@ -55,14 +55,8 @@ Metoda domyślna: **Kraken BLLA** (neuronowa analiza układu / baseline) z masko
 ```python
 def compute_horizontal_projection(binary):
     ink = (binary < 128).astype(np.float64)   # atrament = 1, tło = 0
-    return np.sum(ink, axis=1)                 # liczba pikseli atramentu w każdym wierszu
+    return np.sum(ink, axis=1)                
 
-# 1) wygładzenie profilu (średnia ruchoma, kernel 25) -> redukcja szumu od diakrytyk
-# 2) wykrycie "dolin" między wierszami: find_peaks na odwróconym profilu
-#    (prominence = 3% maks., min. odstęp = MIN_LINE_HEIGHT = 20 px)
-# 3) podział w dolinach -> granice (y_start, y_end) każdej linii
-# 4) scalanie zbyt bliskich segmentów (diakrytyki), filtr wysokości 20–300 px
-# 5) przycięcie pustego marginesu poziomego
 ```
 
 Cropy pobierane z obrazu kolorowego (padding 10 px / 5 px). Wynik: `3_lines/<strona>/line_XXX.png`;
@@ -93,17 +87,14 @@ Trening na Kaggle (GPU T4), `transformers 5.0`, `Seq2SeqTrainer` z generacją w 
 processor = TrOCRProcessor.from_pretrained("microsoft/trocr-base-handwritten")
 model = VisionEncoderDecoderModel.from_pretrained("microsoft/trocr-base-handwritten")
 
-# Spójne tokeny sterujące dekodera
 model.config.decoder_start_token_id = processor.tokenizer.cls_token_id
 model.config.pad_token_id = processor.tokenizer.pad_token_id
 model.config.eos_token_id = processor.tokenizer.sep_token_id
 model.config.vocab_size = model.config.decoder.vocab_size
 
-# Konfiguracja generacji w ewaluacji
-model.generation_config.max_length = 128          # bazowe 20 ucinało predykcje i zawyżało CER
-model.generation_config.no_repeat_ngram_size = 3  # blokuje zapętlenia dekodera
+model.generation_config.max_length = 128          
+model.generation_config.no_repeat_ngram_size = 3  
 
-# Oszczędność VRAM: checkpointing aktywacji wymaga wyłączenia cache
 model.config.use_cache = False
 model.gradient_checkpointing_enable()
 ```
@@ -115,7 +106,6 @@ Preprocessing jest **leniwy** (per-batch, bez cache'owania tensorów pikseli —
 ```python
 from torchvision import transforms as T
 
-# Augmentacja TYLKO treningowa (eval bez), nic co zmienia znaczenie liter
 _train_augment = T.Compose([
     T.RandomApply([T.RandomPerspective(distortion_scale=0.15, p=1.0, fill=255)], p=0.5),
     T.RandomApply([T.ColorJitter(brightness=0.2, contrast=0.2)], p=0.5),
@@ -154,8 +144,6 @@ class TrOCRCollator:
         input_ids = tok.input_ids
         pad_id, bos_id = self.processor.tokenizer.pad_token_id, self.processor.tokenizer.cls_token_id
 
-        # Shift-right: przy label_smoothing>0 Trainer liczy stratę zewnętrznie i nie podaje modelowi
-        # `labels`, więc trzeba ręcznie zbudować wejścia dekodera (BOS + przesunięcie).
         decoder_input_ids = input_ids.new_full(input_ids.shape, pad_id)
         decoder_input_ids[:, 0] = bos_id
         decoder_input_ids[:, 1:] = input_ids[:, :-1]
@@ -168,20 +156,19 @@ class TrOCRCollator:
 ```python
 args = Seq2SeqTrainingArguments(
     output_dir=CHECKPOINT_DIR,
-    # --- batch / akumulacja (efektywny batch = 2 * 2 = 4) ---
+
     per_device_train_batch_size=2,
     per_device_eval_batch_size=2,
     gradient_accumulation_steps=2,
-    # --- optymalizacja ---
-    learning_rate=2e-5,                 # 1e-5 przy wznawianiu z checkpointu
-    num_train_epochs=25,                # early stopping ucina wcześniej
+
+    learning_rate=2e-5,              
+    num_train_epochs=25,             
     lr_scheduler_type="cosine",
     warmup_ratio=0.05,
     weight_decay=0.01,
-    label_smoothing_factor=0.1,         # wymaga decoder_input_ids w collatorze (5.2)
-    fp16=True,                          # mixed precision
-    # --- ewaluacja z generacją ---
-    eval_strategy="epoch",              # (evaluation_strategy w starszych wersjach)
+    label_smoothing_factor=0.1,      
+    fp16=True,                       
+
     predict_with_generate=True,
     generation_max_length=128,
     eval_accumulation_steps=4,
@@ -189,7 +176,7 @@ args = Seq2SeqTrainingArguments(
     greater_is_better=False,
     load_best_model_at_end=True,
     save_strategy="epoch",
-    # --- collator dostaje surowe kolumny image_path/text ---
+
     remove_unused_columns=False,
     dataloader_num_workers=2,
     dataloader_pin_memory=False,
